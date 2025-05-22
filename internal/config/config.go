@@ -4,7 +4,7 @@ package config
 import (
     "os"
     "encoding/json"
-    "file/path"
+    "path/filepath"
 )
 
 
@@ -15,14 +15,14 @@ type Config struct {
 
 func getConfigFilePath(), (string, error) {
 
-  const configFileName = ".gatorConfig.json"
+  const configFileName = ".gatorconfig.json"
   
   homeDir, err := os.UserHomeDir() 
   if err != nil {
     return "", err
   }
 
-  configPath := filepath.Join(homedir, configFileName)
+  configPath := filepath.Join(homeDir, configFileName)
   return configPath, nil
 }
 
@@ -68,6 +68,15 @@ func write(cfg Config) error {
   return nil
 }
 
-func SetUser() (Config, error) {
-  
+func (cfg *Config) SetUser(setName string) error {
+
+  cfg.CurrentUserName = setName
+
+  err := write(*cfg)
+  if err != nil {
+    return err
+  }
+
+  return nil
 }
+
