@@ -13,7 +13,7 @@ type Config struct {
   CurrentUserName string `json:"current_user_name"`
 }
 
-func getConfigFilePath(), (string, error) {
+func getConfigFilePath() (string, error) {
 
   const configFileName = ".gatorconfig.json"
   
@@ -49,7 +49,7 @@ func Read() (Config, error){
   return cfg, nil
 }
 
-func write(cfg Config) error {
+func Write(cfg Config) error {
 
   configPath, err := getConfigFilePath()
   if err != nil {
@@ -72,7 +72,7 @@ func (cfg *Config) SetUser(setName string) error {
 
   cfg.CurrentUserName = setName
 
-  err := write(*cfg)
+  err := Write(*cfg)
   if err != nil {
     return err
   }
