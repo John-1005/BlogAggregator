@@ -6,7 +6,10 @@ import (
     "os"
 )
 
+import _ "github.com/lib/pq"
+
 type state struct {
+  db *database.Queries
   cfg *config.Config
 }
 
@@ -21,6 +24,10 @@ type commands struct {
 
 
 func main(){
+
+  db, err := sql.Open("postgres", dbURL)
+
+  dbQueries := database.New(db)
 
   configRead, err := config.Read()
   if err != nil {
@@ -88,4 +95,9 @@ func (c *commands) run(s *state, cmd command) error {
 
 func (c *commands) register(name string, f func(*state, command) error) {
   c.commandMap[name] = f
+}
+
+
+func (c *commands) register(s* state, cmd command) error {
+
 }
