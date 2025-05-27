@@ -4,4 +4,4 @@
 -- name: GetName :one
 
 
-SELECT name from users;
+SELECT * FROM USERS WHERE name = $1;

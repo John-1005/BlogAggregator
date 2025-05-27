@@ -2,11 +2,16 @@ package main
 
 import (
     "github.com/John-1005/BlogAggregator/internal/config"
+    "github.com/John-1005/BlogAggregator/internal/database"
     "fmt"
     "os"
+    "time"
+    "database/sql"
+    "github.com/google/uuid"
+    "context"
+    "github.com/lib/pq"
 )
 
-import _ "github.com/lib/pq"
 
 type state struct {
   db *database.Queries
@@ -25,25 +30,35 @@ type commands struct {
 
 func main(){
 
-  db, err := sql.Open("postgres", dbURL)
-
-  dbQueries := database.New(db)
-
   configRead, err := config.Read()
   if err != nil {
     fmt.Println(err)
     os.Exit(1)
   }
 
-  var s state
+  dbURL := configRead.DBurl
 
+  db, err := sql.Open("postgres", dbURL)
+  if err != nil {
+    fmt.Println(err)
+    os.Exit(1)
+  }
+  defer db.Close()
+
+  dbQueries := database.New(db)
+
+  var s state
+  s.db = dbQueries
   s.cfg = &configRead
 
-  var commands commands
+  var c commands
 
-  commands.commandMap = make(map[string]func(*state, command) error)
+  c.commandMap = make(map[string]func(*state, command) error)
 
-  commands.register("login", handlerLogin)
+  c.register("login", handlerLogin)
+  c.register("register", handlerRegister)
+  c.register("reset", handlerReset)
+  c.register("users", handlerUsers)
 
   if len(os.Args) < 2 {
     fmt.Println("expected a command")
@@ -54,7 +69,7 @@ func main(){
   cmd.name = os.Args[1]
   cmd.args = os.Args[2:]
 
-  err = commands.run(&s, cmd)
+  err = c.run(&s, cmd)
   if err != nil {
     fmt.Println(err)
     os.Exit(1)
@@ -68,13 +83,19 @@ func handlerLogin(s *state, cmd command) error {
     return fmt.Errorf("username must be entered")
   }
 
+  userName := cmd.args[0]
 
-  err := s.cfg.SetUser(cmd.args[0])
+  user, err := s.db.GetName(context.Background(), userName)
+  if err != nil {
+    return fmt.Errorf("invalid user")
+  }
+
+  err = s.cfg.SetUser(cmd.args[0])
   if err != nil {
     return err
   }
 
-  fmt.Printf("Success! username set to: %v\n", s.cfg.CurrentUserName)
+  fmt.Printf("Success! username set to: %v\n", user)
   return nil
 }
 
@@ -98,6 +119,75 @@ func (c *commands) register(name string, f func(*state, command) error) {
 }
 
 
-func (c *commands) register(s* state, cmd command) error {
+func handlerRegister(s *state, cmd command) error {
+  if len(cmd.args) == 0 {
+    return fmt.Errorf("name must be registered")
+  }
+  
+  uniqueID := uuid.New()
+  t:= time.Now()
+  userName := cmd.args[0]
+
+  user, err := s.db.CreateUser(
+    context.Background(),
+    database.CreateUserParams{
+      ID:        uniqueID,
+      CreatedAt: t,
+      UpdatedAt: t,
+      Name:      userName,
+    },
+  )
+
+  if err != nil {
+    if pgErr, ok := err.(*pq.Error); ok && pgErr.Code == "23505" {
+      fmt.Println("name already exists")
+      os.Exit(1)
+    }
+
+    return fmt.Errorf("failed to register user: %w", err)
+  }
+
+  s.cfg.CurrentUserName = userName
+
+  if err := config.Write(*s.cfg); err != nil {
+    return fmt.Errorf("unable to write: %w", err)
+  }
+  fmt.Printf("User successfully created: %+v\n", user)
+  return nil
+}
+
+
+func handlerReset(s *state, cmd command) error {
+  
+  err := s.db.DeleteUsers(context.Background())
+  if err != nil{
+    fmt.Println("no users to delete")
+    os.Exit(1)
+  }
+
+  fmt.Println("Successfully deleted users")
+  return nil
+
+}
+
+
+func handlerUsers (s *state, cmd command) error {
+
+  users, err := s.db.GetUsers(context.Background())
+  if err != nil {
+    fmt.Println("no users in table")
+    os.Exit(1)
+  }
+
+  for _, user := range users {
+    if user == s.cfg.CurrentUserName {
+      fmt.Printf("* %s (current)\n", user)
+    }else{
+      fmt.Printf("* %s\n", user)
+    }
+  }
+
+  return nil
+
 
 }
