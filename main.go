@@ -59,6 +59,7 @@ func main(){
   c.register("register", handlerRegister)
   c.register("reset", handlerReset)
   c.register("users", handlerUsers)
+  c.register("agg", handlerAgg)
 
   if len(os.Args) < 2 {
     fmt.Println("expected a command")
@@ -190,4 +191,22 @@ func handlerUsers (s *state, cmd command) error {
   return nil
 
 
+}
+
+
+func handlerAgg(s* state, cmd command) error {
+  rssURL := "https://www.wagslane.dev/index.xml"
+  rssAGG, err := fetchFeed(context.Background(), rssURL)
+  if err != nil {
+    return err
+  } 
+
+  if len(rssAGG.Channel.Item) == 0 {
+
+    return fmt.Errorf("empty struct")
+  }
+
+  fmt.Printf("%+v\n", rssAGG)
+
+  return nil
 }
