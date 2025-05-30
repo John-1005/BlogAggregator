@@ -60,6 +60,8 @@ func main(){
   c.register("reset", handlerReset)
   c.register("users", handlerUsers)
   c.register("agg", handlerAgg)
+  c.register("addfeed", handleraddFeed)
+  c.register("feeds", handlerFeeds)
 
   if len(os.Args) < 2 {
     fmt.Println("expected a command")
@@ -126,7 +128,7 @@ func handlerRegister(s *state, cmd command) error {
   }
   
   uniqueID := uuid.New()
-  t:= time.Now()
+  t:= time.Now().UTC()
   userName := cmd.args[0]
 
   user, err := s.db.CreateUser(
@@ -209,4 +211,59 @@ func handlerAgg(s* state, cmd command) error {
   fmt.Printf("%+v\n", rssAGG)
 
   return nil
+}
+
+func handleraddFeed(s *state, cmd command) error {
+  if len(cmd.args) != 2 {
+    fmt.Println("requires 2 arguments: name and url")
+    os.Exit(1)
+  }
+  name := cmd.args[0]
+  url := cmd.args[1]
+  t:= time.Now().UTC()
+  uniqueID := uuid.New()
+
+  currentName := s.cfg.CurrentUserName
+  userName, err := s.db.GetName(context.Background(), currentName)
+  if err != nil {
+    return err
+  }
+
+  id := userName.ID
+
+  feed, err := s.db.CreateFeed(
+    context.Background(),
+    database.CreateFeedParams{
+      ID:        uniqueID,
+      UserID:    id,
+      Name:      name,
+      CreatedAt: t,
+      UpdatedAt: t,
+      Url:       url,
+    },
+  )
+  if err != nil {
+    return fmt.Errorf("Unable to create feed: %w", err)
+  }
+
+  fmt.Printf("Feed created successfully: %+v", feed)
+  return nil
+
+}
+
+func handlerFeeds(s *state, cmd command) error {
+  feeds, err := s.db.ListFeeds(context.Background())
+  if err != nil {
+    return err
+  }
+
+  if len(feeds) == 0{
+    return fmt.Errorf("no feeds to list")
+  }
+
+  for _, item := range feeds {
+    fmt.Printf("Feed: %s, URL: %s, Created by: %s\n", item.FeedName, item.Url, item.Name)
+  }
+  return nil
+
 }
