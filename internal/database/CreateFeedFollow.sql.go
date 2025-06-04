@@ -7,6 +7,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -72,7 +73,7 @@ func (q *Queries) CreateFeedFollows(ctx context.Context, arg CreateFeedFollowsPa
 
 const getFeedFollowsForUser = `-- name: GetFeedFollowsForUser :many
 
-SELECT feed_follows.id, feed_follows.user_id, feed_id, feed_follows.created_at, feed_follows.updated_at, users.id, users.created_at, users.updated_at, users.name, feeds.id, feeds.user_id, feeds.created_at, feeds.updated_at, feeds.name, url 
+SELECT feed_follows.id, feed_follows.user_id, feed_id, feed_follows.created_at, feed_follows.updated_at, users.id, users.created_at, users.updated_at, users.name, feeds.id, feeds.user_id, feeds.created_at, feeds.updated_at, feeds.name, url, last_fetched_at 
 FROM feed_follows
 INNER JOIN users ON feed_follows.user_id = users.id
 INNER JOIN feeds ON feed_follows.feed_id = feeds.id
@@ -80,21 +81,22 @@ WHERE feed_follows.user_id = $1
 `
 
 type GetFeedFollowsForUserRow struct {
-	ID          uuid.UUID
-	UserID      uuid.UUID
-	FeedID      uuid.UUID
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	ID_2        uuid.UUID
-	CreatedAt_2 time.Time
-	UpdatedAt_2 time.Time
-	Name        string
-	ID_3        uuid.UUID
-	UserID_2    uuid.UUID
-	CreatedAt_3 time.Time
-	UpdatedAt_3 time.Time
-	Name_2      string
-	Url         string
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	FeedID        uuid.UUID
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	ID_2          uuid.UUID
+	CreatedAt_2   time.Time
+	UpdatedAt_2   time.Time
+	Name          string
+	ID_3          uuid.UUID
+	UserID_2      uuid.UUID
+	CreatedAt_3   time.Time
+	UpdatedAt_3   time.Time
+	Name_2        string
+	Url           string
+	LastFetchedAt sql.NullTime
 }
 
 func (q *Queries) GetFeedFollowsForUser(ctx context.Context, userID uuid.UUID) ([]GetFeedFollowsForUserRow, error) {
@@ -122,6 +124,7 @@ func (q *Queries) GetFeedFollowsForUser(ctx context.Context, userID uuid.UUID) (
 			&i.UpdatedAt_3,
 			&i.Name_2,
 			&i.Url,
+			&i.LastFetchedAt,
 		); err != nil {
 			return nil, err
 		}

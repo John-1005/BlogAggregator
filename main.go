@@ -64,6 +64,7 @@ func main(){
   c.register("feeds", handlerFeeds)
   c.register("follow", middlewareLoggedIn(handlerFollow))
   c.register("following", middlewareLoggedIn(handlerFollowing))
+  c.register("unfollow", middlewareLoggedIn(handlerUnfollow))
 
   if len(os.Args) < 2 {
     fmt.Println("expected a command")
@@ -328,6 +329,34 @@ func handlerFollow(s *state, cmd command, user database.User) error {
   return nil
 }
 
+func handlerUnfollow(s *state, cmd command, user database.User) error {
+
+  if len(cmd.args) == 0 {
+    return fmt.Errorf("expected command")
+  }
+
+  url := cmd.args[0]
+
+  feedID, err := s.db.GetFeedByUrl(context.Background(), url)
+
+  if err != nil {
+    return err
+  }
+
+  err = s.db.DeleteFeedFollow(
+    context.Background(),
+    database.DeleteFeedFollowParams{
+      UserID: user.ID, 
+      FeedID: feedID,
+    },
+  )
+  if err != nil {
+    return err
+  }
+
+  fmt.Printf("feed unfollowed")
+  return nil
+}
 
 func handlerFollowing(s *state, cmd command, user database.User) error {
 
