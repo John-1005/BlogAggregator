@@ -4,6 +4,7 @@ import (
     "github.com/John-1005/BlogAggregator/internal/config"
     "github.com/John-1005/BlogAggregator/internal/database"
     "fmt"
+    "log"
     "os"
     "time"
     "database/sql"
@@ -211,19 +212,55 @@ func handlerUsers (s *state, cmd command) error {
 
 
 func handlerAgg(s* state, cmd command) error {
-  rssURL := "https://www.wagslane.dev/index.xml"
-  rssAGG, err := fetchFeed(context.Background(), rssURL)
-  if err != nil {
-    return err
-  } 
-
-  if len(rssAGG.Channel.Item) == 0 {
-
-    return fmt.Errorf("empty struct")
+  if len(cmd.args) == 0 {
+    return fmt.Errorf("expected command")
   }
 
-  fmt.Printf("%+v\n", rssAGG)
+  durationString := cmd.args[0]
 
+  duration, err := time.ParseDuration(durationString)
+
+  if err != nil {
+    return err
+  }
+
+  ticker := time.NewTicker(duration)
+  
+  for ; ; <- ticker.C {
+    scrapeFeeds(s)
+  }
+
+  return nil
+
+}
+
+func scrapeFeeds(s *state) error {
+
+  fetchedFeed, err := s.db.GetNextFeedToFetch(context.Background())
+
+  if err != nil {
+    log.Printf("Error getting next feed to fetch %v", err)
+    return nil
+  }
+
+  _, err = s.db.MarkedFeedFetch(context.Background(), fetchedFeed.ID)
+
+  if err != nil {
+    log.Printf("Error marking feed %s as fetched %v ", fetchedFeed.Url, err)
+    return nil
+  }
+
+
+  feed, err := fetchFeed(context.Background(), fetchedFeed.Url)
+
+  if err != nil {
+    log.Printf("Error fetching feed %s: %v", fetchedFeed.Url, err)
+    return nil
+  }
+
+  for _, item := range feed.Channel.Item {
+    fmt.Printf("Title: %s\n", item.Title)
+  }
   return nil
 }
 
