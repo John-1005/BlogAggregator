@@ -7,6 +7,8 @@ import (
     "log"
     "os"
     "time"
+    "strings"
+    "strconv"
     "database/sql"
     "github.com/google/uuid"
     "context"
@@ -66,6 +68,7 @@ func main(){
   c.register("follow", middlewareLoggedIn(handlerFollow))
   c.register("following", middlewareLoggedIn(handlerFollowing))
   c.register("unfollow", middlewareLoggedIn(handlerUnfollow))
+  c.register("browse", middlewareLoggedIn(handlerBrowse))
 
   if len(os.Args) < 2 {
     fmt.Println("expected a command")
@@ -259,8 +262,44 @@ func scrapeFeeds(s *state) error {
   }
 
   for _, item := range feed.Channel.Item {
-    fmt.Printf("Title: %s\n", item.Title)
+
+    uniqueID := uuid.New()
+    title := item.Title
+    publishedAt := sql.NullTime{}
+    if time, err := time.Parse(time.RFC1123Z, item.PubDate); err == nil {
+      publishedAt = sql.NullTime{
+        Time:   time,
+        Valid: true,
+      }
+    }
+
+    _, err = s.db.CreatePost(
+      context.Background(),
+      database.CreatePostParams{
+        ID: uniqueID,
+        CreatedAt: time.Now().UTC(),
+        UpdatedAt: time.Now().UTC(),
+        Title: title,
+        Url: item.Link,
+        Description: sql.NullString{
+            String: item.Description,
+            Valid: true,
+        },
+        PublishedAt: publishedAt,
+        FeedID: fetchedFeed.ID,
+        },
+      )
+
+    if err != nil {
+      if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+        continue
+      }
+      log.Printf("Couldn't create post: %v", err)
+      continue
+    }
   }
+
+  log.Printf("Feed %s collected, %v posts found", feed.Channel.Title, len(feed.Channel.Item))
   return nil
 }
 
@@ -407,5 +446,39 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
     fmt.Printf("Feed name: %s\n", following.Name_2)
   }
 
+  return nil
+}
+
+
+func handlerBrowse(s *state, cmd command, user database.User) error {
+  limit := 2
+  if len(cmd.args) > 0 {
+    if cmdLimit, err := strconv.Atoi(cmd.args[0]); err == nil {
+      limit = cmdLimit
+    } else {
+      return fmt.Errorf("invalid limit: %w", err)
+    }
+
+  }
+
+  posts, err := s.db.GetPostsForUser(
+    context.Background(),
+    database.GetPostsForUserParams{
+      UserID: user.ID,
+      Limit: int32(limit),
+    },
+  )
+  if err != nil {
+    return fmt.Errorf("couldn't get posts for user: %s", err)
+  }
+
+  fmt.Printf("Found %d posts for user: %s:\n", len(posts), user.Name)
+  for _, post := range posts {
+    fmt.Printf("%s from %s\n", post.PublishedAt.Time.Format("Mon Jan 2"), post.FeedName)
+		fmt.Printf("--- %s ---\n", post.Title)
+		fmt.Printf("    %v\n", post.Description.String)
+		fmt.Printf("Link: %s\n", post.Url)
+		fmt.Println("*********************")
+  }
   return nil
 }
